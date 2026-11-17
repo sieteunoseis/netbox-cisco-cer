@@ -20,14 +20,16 @@
       <h5 class="card-header">ERL</h5>
       <table class="table table-hover attr-table">
         <tr><th scope="row">Name</th><td>{{ object.name }}</td></tr>
-        <tr><th scope="row">Site</th><td>{{ object.site|linkify }}</td></tr>
+        <tr><th scope="row">Site</th><td>{% if object.site %}{{ object.site|linkify }}{% else %}<span class="badge text-bg-warning">No site - edit to assign one</span>{% endif %}</td></tr>
         <tr><th scope="row">Status</th><td>{% badge object.get_status_display bg_color=object.get_status_color %}</td></tr>
         <tr><th scope="row">Description</th><td>{{ object.description|placeholder }}</td></tr>
         <tr><th scope="row">ELIN</th><td>{{ object.elin|placeholder }}</td></tr>
         <tr><th scope="row">Route pattern</th><td>{{ object.route_pattern|placeholder }}</td></tr>
         <tr><th scope="row">Time zone</th><td>{{ object.time_zone|placeholder }}</td></tr>
         <tr><th scope="row">Onsite alerts</th><td>{{ object.onsite_alert_list|join:", "|placeholder }}</td></tr>
+        <tr><th scope="row">ERL type</th><td>{{ object.erl_type|placeholder }}</td></tr>
         <tr><th scope="row">Last pushed</th><td>{{ object.last_pushed|isodatetime|placeholder }}</td></tr>
+        <tr><th scope="row">Last seen in export</th><td>{{ object.last_seen_export|isodatetime|placeholder }}</td></tr>
       </table>
     </div>
     <div class="card">
@@ -40,6 +42,7 @@
         <tr><th scope="row">Customer name</th><td>{{ object.customer_name|placeholder }}</td></tr>
         <tr><th scope="row">Company ID</th><td>{{ object.company_id|placeholder }}</td></tr>
         <tr><th scope="row">Customer code</th><td>{{ object.customer_code|placeholder }}</td></tr>
+        <tr><th scope="row">ALI comments</th><td>{{ object.ali_comments|placeholder }}</td></tr>
       </table>
     </div>
     {% include 'inc/panels/custom_fields.html' %}

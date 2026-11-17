@@ -45,3 +45,6 @@ htmlcov/
 
 # Claude Code context (local only)
 CLAUDE.md
+
+# Local data exports (never commit site data)
+*.csv

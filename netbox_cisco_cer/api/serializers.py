@@ -4,12 +4,12 @@ from dcim.api.serializers import SiteSerializer
 from netbox.api.serializers import NetBoxModelSerializer
 from rest_framework import serializers
 
-from ..models import ERL
+from ..models import ELIN, ERL
 
 
 class ERLSerializer(NetBoxModelSerializer):
     url = serializers.HyperlinkedIdentityField(view_name="plugins-api:netbox_cisco_cer-api:erl-detail")
-    site = SiteSerializer(nested=True)
+    site = SiteSerializer(nested=True, required=False, allow_null=True)
 
     class Meta:
         model = ERL
@@ -40,7 +40,10 @@ class ERLSerializer(NetBoxModelSerializer):
             "customer_name",
             "company_id",
             "customer_code",
+            "ali_comments",
+            "erl_type",
             "last_pushed",
+            "last_seen_export",
             "comments",
             "tags",
             "custom_fields",
@@ -48,3 +51,26 @@ class ERLSerializer(NetBoxModelSerializer):
             "last_updated",
         ]
         brief_fields = ["id", "url", "display", "name", "elin"]
+
+
+class ELINSerializer(NetBoxModelSerializer):
+    url = serializers.HyperlinkedIdentityField(view_name="plugins-api:netbox_cisco_cer-api:elin-detail")
+
+    class Meta:
+        model = ELIN
+        fields = [
+            "id",
+            "url",
+            "display",
+            "number",
+            "status",
+            "building_name",
+            "erl_name",
+            "note",
+            "comments",
+            "tags",
+            "custom_fields",
+            "created",
+            "last_updated",
+        ]
+        brief_fields = ["id", "url", "display", "number", "status"]

@@ -26,9 +26,9 @@ class ERLStatusChoices(ChoiceSet):
 
 
 class ERL(NetBoxModel):
-    """A Cisco CER Conventional ERL tied to a NetBox Site."""
+    """A Cisco CER ERL, normally tied to a NetBox Site (imported ERLs may not match a site yet)."""
 
-    site = models.ForeignKey(to=Site, on_delete=models.CASCADE, related_name="cer_erls")
+    site = models.ForeignKey(to=Site, on_delete=models.SET_NULL, related_name="cer_erls", blank=True, null=True)
     name = models.CharField(max_length=100, unique=True, verbose_name="ERL name")
     status = models.CharField(max_length=30, choices=ERLStatusChoices, default=ERLStatusChoices.STATUS_PLANNED)
     description = models.CharField(max_length=200, blank=True)
@@ -60,8 +60,13 @@ class ERL(NetBoxModel):
     customer_name = models.CharField(max_length=32, blank=True)
     company_id = models.CharField(max_length=10, blank=True, verbose_name="Company ID")
     customer_code = models.CharField(max_length=10, blank=True)
+    ali_comments = models.CharField(max_length=30, blank=True, verbose_name="ALI comments")
+    erl_type = models.CharField(max_length=50, blank=True, verbose_name="ERL type", help_text="From the CER export")
 
     last_pushed = models.DateTimeField(blank=True, null=True)
+    last_seen_export = models.DateTimeField(
+        blank=True, null=True, help_text="Last time this ERL appeared in an imported CER export"
+    )
     comments = models.TextField(blank=True)
 
     class Meta:
@@ -132,7 +137,7 @@ class ERL(NetBoxModel):
             "ZipCodeExt": self.zip_code_ext,
             "CustomerCode": self.customer_code,
             # CER limits Comments to 30 characters; used as a back-reference to NetBox
-            "Comments": f"NetBox site {self.site_id}"[:30],
+            "Comments": (f"NetBox site {self.site_id}" if self.site_id else self.ali_comments)[:30],
             "Longitude": "",
             "Latitude": "",
             "Elevation": "",
@@ -152,3 +157,57 @@ class ERL(NetBoxModel):
         if self.elin:
             erl["ELINSettings"] = {"ELINDetails": [{"RoutePattern": self.route_pattern, "ELIN": self.elin}]}
         return {"ConventionalERL": erl}
+
+
+class ELINStatusChoices(ChoiceSet):
+    key = "ELIN.status"
+
+    STATUS_AVAILABLE = "available"
+    STATUS_IN_USE = "in_use"
+    STATUS_RESERVED = "reserved"
+
+    CHOICES = [
+        (STATUS_AVAILABLE, "Available", "green"),
+        (STATUS_IN_USE, "In Use", "blue"),
+        (STATUS_RESERVED, "Reserved", "orange"),
+    ]
+
+
+class ELIN(NetBoxModel):
+    """An Emergency Location Identification Number in the ELIN pool (e.g. from a tracking sheet)."""
+
+    number = models.CharField(max_length=20, unique=True)
+    status = models.CharField(max_length=30, choices=ELINStatusChoices, default=ELINStatusChoices.STATUS_AVAILABLE)
+    building_name = models.CharField(max_length=100, blank=True)
+    erl_name = models.CharField(max_length=100, blank=True, verbose_name="ERL name (sheet)")
+    note = models.CharField(max_length=200, blank=True)
+    comments = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ("number",)
+        verbose_name = "ELIN"
+        verbose_name_plural = "ELINs"
+
+    def __str__(self):
+        return self.number
+
+    def get_absolute_url(self):
+        return reverse("plugins:netbox_cisco_cer:elin", args=[self.pk])
+
+    def get_status_color(self):
+        return ELINStatusChoices.colors.get(self.status)
+
+    @property
+    def erl(self):
+        return ERL.objects.filter(elin=self.number).first()
+
+
+def next_available_elin():
+    """First pool ELIN marked Available and not used by any ERL record."""
+    used = ERL.objects.exclude(elin="").values_list("elin", flat=True)
+    return (
+        ELIN.objects.filter(status=ELINStatusChoices.STATUS_AVAILABLE)
+        .exclude(number__in=used)
+        .order_by("number")
+        .first()
+    )

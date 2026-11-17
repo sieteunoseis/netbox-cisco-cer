@@ -22,4 +22,22 @@ menu_items = (
             ),
         ),
     ),
+    PluginMenuItem(
+        link="plugins:netbox_cisco_cer:elin_list",
+        link_text="CER ELIN Pool",
+        permissions=["netbox_cisco_cer.view_elin"],
+        buttons=(
+            PluginMenuButton(
+                link="plugins:netbox_cisco_cer:elin_add",
+                title="Add",
+                icon_class="mdi mdi-plus-thick",
+                permissions=["netbox_cisco_cer.add_elin"],
+            ),
+        ),
+    ),
+    PluginMenuItem(
+        link="plugins:netbox_cisco_cer:cer_import",
+        link_text="CER Import / Sync",
+        permissions=["netbox_cisco_cer.add_erl"],
+    ),
 )

@@ -19,10 +19,11 @@ from utilities.views import ViewTab, register_model_view
 from . import geocode
 from .address import address_key, ali_to_fields, format_address, parse_address
 from .cer_client import CERError, get_client
-from .filtersets import ERLFilterSet
-from .forms import ERLFilterForm, ERLForm, ERLImportForm
-from .models import ERL, ERLStatusChoices
-from .tables import ERLTable
+from .filtersets import ELINFilterSet, ERLFilterSet
+from .forms import CERImportForm, ELINFilterForm, ELINForm, ERLFilterForm, ERLForm, ERLImportForm
+from .importers import ImportFormatError, import_elin_sheet, import_national_erls
+from .models import ELIN, ERL, ERLStatusChoices, next_available_elin
+from .tables import ELINTable, ERLTable
 
 logger = logging.getLogger(__name__)
 
@@ -341,3 +342,77 @@ class ERLLinkView(PermissionRequiredMixin, View):
         if not names:
             messages.error(request, "No ERL selected.")
         return redirect(return_url)
+
+
+#
+# ELIN pool
+#
+
+
+class ELINListView(generic.ObjectListView):
+    queryset = ELIN.objects.prefetch_related("tags")
+    table = ELINTable
+    filterset = ELINFilterSet
+    filterset_form = ELINFilterForm
+
+
+class ELINView(generic.ObjectView):
+    queryset = ELIN.objects.all()
+
+
+class ELINEditView(generic.ObjectEditView):
+    queryset = ELIN.objects.all()
+    form = ELINForm
+
+
+class ELINDeleteView(generic.ObjectDeleteView):
+    queryset = ELIN.objects.all()
+
+
+class ELINBulkDeleteView(generic.BulkDeleteView):
+    queryset = ELIN.objects.all()
+    filterset = ELINFilterSet
+    table = ELINTable
+
+
+#
+# Import CER exports
+#
+
+
+class CERImportView(PermissionRequiredMixin, View):
+    """Upload a CER National ERL export or an ELIN tracking sheet (dry run by default)."""
+
+    permission_required = ("netbox_cisco_cer.add_erl", "netbox_cisco_cer.change_erl", "netbox_cisco_cer.add_elin")
+    template_name = "netbox_cisco_cer/import.html"
+
+    def get(self, request):
+        return render(request, self.template_name, {"form": CERImportForm(), "next_elin": next_available_elin()})
+
+    def post(self, request):
+        form = CERImportForm(request.POST, request.FILES)
+        context = {"form": form, "next_elin": next_available_elin()}
+        if form.is_valid():
+            kind = form.cleaned_data["kind"]
+            dry_run = form.cleaned_data["dry_run"]
+            data = form.cleaned_data["csv_file"].read()
+            try:
+                if kind == "national_erls":
+                    result = import_national_erls(data, dry_run=dry_run)
+                else:
+                    result = import_elin_sheet(data, dry_run=dry_run)
+            except ImportFormatError as e:
+                messages.error(request, str(e))
+                return render(request, self.template_name, context)
+            except UnicodeDecodeError:
+                messages.error(request, "File is not UTF-8 CSV.")
+                return render(request, self.template_name, context)
+            context.update({"result": result, "kind": kind, "dry_run": dry_run})
+            if not dry_run:
+                messages.success(
+                    request,
+                    f"Imported: {len(result['created'])} created, {len(result['updated'])} updated, "
+                    f"{result['unchanged']} unchanged.",
+                )
+                context["next_elin"] = next_available_elin()
+        return render(request, self.template_name, context)

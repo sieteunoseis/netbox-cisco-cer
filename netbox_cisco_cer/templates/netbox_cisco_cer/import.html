@@ -1,0 +1,86 @@
+{% extends 'generic/_base.html' %}
+{% load helpers %}
+{% load form_helpers %}
+
+{% block title %}CER Import / Sync{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-6">
+    <div class="card mb-3">
+      <h5 class="card-header"><i class="mdi mdi-upload"></i> Upload a CER export</h5>
+      <div class="card-body">
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+          {% render_field form.kind %}
+          {% render_field form.csv_file %}
+          {% render_field form.dry_run %}
+          <button type="submit" class="btn btn-primary"><i class="mdi mdi-upload"></i> Import</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="card mb-3">
+      <h5 class="card-header"><i class="mdi mdi-information-outline"></i> How syncing works</h5>
+      <div class="card-body small">
+        <ul class="mb-2">
+          <li><strong>National ERL export:</strong> in CER Admin, open the National E911 ERL list and click <em>Export</em>. Upload the CSV unchanged.</li>
+          <li><strong>Matching:</strong> ERLs are matched by name, so re-importing a newer export updates them in place. New ERLs are matched to a Site by name prefix (<code>ADMN 0-2</code> becomes <code>ADMN</code>), then by street address. ERLs with no match are imported without a site.</li>
+          <li><strong>ELIN tracking sheet:</strong> loads the ELIN pool. The New ERL form then suggests the next Available number, and duplicate ELINs are blocked.</li>
+          <li>Start with <strong>Dry run</strong> to preview the changes. Nothing is saved until you untick it.</li>
+        </ul>
+        {% if next_elin %}<span class="badge text-bg-success">Next available ELIN: {{ next_elin.number }}</span>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if result %}
+<div class="card mb-3">
+  <h5 class="card-header">
+    {% if dry_run %}<span class="badge text-bg-warning">Dry run - nothing saved</span>{% else %}<span class="badge text-bg-success">Saved</span>{% endif %}
+    {% if kind == 'national_erls' %}National ERL export{% else %}ELIN tracking sheet{% endif %}: {{ result.rows }} rows
+  </h5>
+  <div class="card-body">
+    <table class="table table-sm w-auto mb-3">
+      <tr><th>Created</th><td>{{ result.created|length }}</td></tr>
+      <tr><th>Updated</th><td>{{ result.updated|length }}</td></tr>
+      <tr><th>Unchanged</th><td>{{ result.unchanged }}</td></tr>
+      {% if kind == 'national_erls' %}
+      <tr><th>No matching site</th><td>{{ result.no_site|length }}{% if result.no_site and not dry_run %} &mdash; <a href="{% url 'plugins:netbox_cisco_cer:erl_list' %}?has_site=false">assign sites</a>{% endif %}</td></tr>
+      <tr><th>Migrated ERLs missing from this export</th><td>{{ result.missing_from_export|length }}</td></tr>
+      {% else %}
+      <tr><th>Sheet vs ERL mismatches</th><td>{{ result.mismatches|length }}</td></tr>
+      {% endif %}
+      <tr><th>Errors</th><td>{{ result.errors|length }}</td></tr>
+    </table>
+
+    {% if result.errors %}
+    <h6 class="text-danger">Errors</h6>
+    <ul class="small">{% for e in result.errors %}<li>{{ e }}</li>{% endfor %}</ul>
+    {% endif %}
+    {% if result.mismatches %}
+    <h6>Sheet vs ERL mismatches</h6>
+    <ul class="small">{% for m in result.mismatches %}<li>{{ m }}</li>{% endfor %}</ul>
+    {% endif %}
+    {% if result.missing_from_export %}
+    <h6>Migrated ERLs not in this export (deleted in CER?)</h6>
+    <p class="small">{{ result.missing_from_export|join:", " }}</p>
+    {% endif %}
+    {% if result.no_site %}
+    <h6>No matching site</h6>
+    <p class="small">{{ result.no_site|join:", " }}</p>
+    {% endif %}
+    {% if result.created %}
+    <h6>Created</h6>
+    <p class="small">{{ result.created|join:", " }}</p>
+    {% endif %}
+    {% if result.updated %}
+    <h6>Updated</h6>
+    <p class="small">{{ result.updated|join:", " }}</p>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

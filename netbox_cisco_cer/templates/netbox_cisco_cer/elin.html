@@ -1,0 +1,25 @@
+{% extends 'generic/object.html' %}
+{% load helpers %}
+{% load plugins %}
+
+{% block content %}
+<div class="row">
+  <div class="col col-md-6">
+    <div class="card">
+      <h5 class="card-header">ELIN</h5>
+      <table class="table table-hover attr-table">
+        <tr><th scope="row">Number</th><td>{{ object.number }}</td></tr>
+        <tr><th scope="row">Status</th><td>{% badge object.get_status_display bg_color=object.get_status_color %}</td></tr>
+        <tr><th scope="row">Building</th><td>{{ object.building_name|placeholder }}</td></tr>
+        <tr><th scope="row">ERL name (sheet)</th><td>{{ object.erl_name|placeholder }}</td></tr>
+        <tr><th scope="row">ERL record</th><td>{{ object.erl|linkify|placeholder }}</td></tr>
+        <tr><th scope="row">Note</th><td>{{ object.note|placeholder }}</td></tr>
+      </table>
+    </div>
+    {% include 'inc/panels/custom_fields.html' %}
+    {% include 'inc/panels/tags.html' %}
+    {% include 'inc/panels/comments.html' %}
+  </div>
+  <div class="col col-md-6">{% plugin_right_page object %}</div>
+</div>
+{% endblock %}
