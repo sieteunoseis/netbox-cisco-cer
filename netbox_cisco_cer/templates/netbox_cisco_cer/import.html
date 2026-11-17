@@ -39,7 +39,7 @@
 {% if result %}
 <div class="card mb-3">
   <h5 class="card-header">
-    {% if dry_run %}<span class="badge text-bg-warning">Dry run - nothing saved</span>{% else %}<span class="badge text-bg-success">Saved</span>{% endif %}
+    <div class="mb-1">{% if dry_run %}<span class="badge text-bg-warning">Dry run - nothing saved</span>{% else %}<span class="badge text-bg-success">Saved</span>{% endif %}</div>
     {% if kind == 'national_erls' %}National ERL export{% else %}ELIN tracking sheet{% endif %}: {{ result.rows }} rows
   </h5>
   <div class="card-body">
