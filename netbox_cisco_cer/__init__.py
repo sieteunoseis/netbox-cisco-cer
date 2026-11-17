@@ -35,6 +35,8 @@ class CiscoCERConfig(PluginConfig):
         # Seconds to cache the Conventional ERL list
         "cache_timeout": 60,
         "verify_ssl": False,
+        # Site tab position among other plugin tabs (lower = further left)
+        "tab_weight": 9008,
         # Defaults applied to new ERL records (all editable per ERL)
         "default_route_pattern": "#911",
         # Onsite Alert IDs always attached to every ERL pushed to CER, e.g. ["PublicSafety"]

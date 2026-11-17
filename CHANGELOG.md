@@ -14,6 +14,8 @@
 - "Link all address matches" button, to link several floor ERLs at once.
 - Onsite alerts per ERL. A `default_onsite_alerts` setting attaches IDs (e.g. `PublicSafety`) to every pushed ERL.
 - Off-Premises ERL status, for records only; pushing is disabled for it.
+- `tab_weight` setting controls where the Site tab appears among other plugin tabs (default 9008).
+- New ERLs always start as Planned; pushing or linking sets In CER.
 - Pushing no longer requires an ELIN. An ELIN or onsite alerts added in the CER web page are kept when updating from NetBox.
 
 ### Fixed

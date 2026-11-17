@@ -43,6 +43,7 @@ PLUGINS_CONFIG = {
         "verify_ssl": False,
         "default_route_pattern": "#911",
         "default_onsite_alerts": ["PublicSafety"],
+        "tab_weight": 9008,
         "default_time_zone": "America/Los_Angeles",
         "default_cos": "Business PBX",
         "default_tos": "FX in 911 area",

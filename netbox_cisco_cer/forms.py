@@ -77,6 +77,14 @@ class ERLForm(NetBoxModelForm):
             "street_suffix": "USPS abbreviation, e.g. DR, AVE, RD",
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # New ERLs always start as Planned; Push/Link set "In CER". Status is editable afterwards.
+        if not self.instance.pk:
+            self.fields["status"].disabled = True
+            self.fields["status"].initial = ERLStatusChoices.STATUS_PLANNED
+            self.fields["status"].help_text = "New ERLs start as Planned; pushing or linking sets In CER"
+
 
 class ERLFilterForm(NetBoxModelFilterSetForm):
     model = ERL

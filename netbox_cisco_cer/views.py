@@ -138,7 +138,12 @@ def _new_erl_url(site):
 class SiteCERView(generic.ObjectView):
     queryset = Site.objects.all()
     template_name = "netbox_cisco_cer/site_tab.html"
-    tab = ViewTab(label="Cisco CER", weight=9008, permission="netbox_cisco_cer.view_erl", hide_if_empty=False)
+    tab = ViewTab(
+        label="Cisco CER",
+        weight=settings.PLUGINS_CONFIG.get("netbox_cisco_cer", {}).get("tab_weight", 9008),
+        permission="netbox_cisco_cer.view_erl",
+        hide_if_empty=False,
+    )
 
     def get(self, request, pk):
         site = get_object_or_404(Site, pk=pk)
