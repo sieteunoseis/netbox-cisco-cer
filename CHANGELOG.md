@@ -3,9 +3,11 @@
 ## [0.2.0] - 2026-11-17
 
 ### Added
-- **CER Import / Sync** page (dry run by default):
-  - **National ERL export:** upload CER's export CSV unchanged. ERLs are matched by name, so re-importing updates them in place. Imported ERLs are marked Migrated (National E911) with a "last seen in export" date. The results list migrated ERLs that are missing from the newer export.
-  - **ELIN tracking sheet:** loads a new **ELIN Pool**. The results report sheet-vs-ERL mismatches: names that differ, "Available" numbers already in use, and "In Use" numbers with no ERL.
+- **CER Import / Sync** page (dry run by default). Upload CER's own ERL export CSV unchanged:
+  - National E911 ERLs import as Migrated, Conventional ones as In CER, and the `Default` ERL is skipped.
+  - ERLs are matched by name, so re-importing updates them in place.
+  - Each ERL gets a "last seen in export" date. The results list ERLs of the same type that are missing from the newer export.
+- **ELIN Pool** (entered by hand), used to suggest the next available ELIN.
 - New ERLs are matched to a Site by name prefix, then by unique street address.
 - ERLs can exist without a site (filter: Has site = No).
 - The ERL form shows the next available ELIN from the pool and rejects duplicate ELINs.

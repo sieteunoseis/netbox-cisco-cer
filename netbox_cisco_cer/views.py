@@ -21,7 +21,7 @@ from .address import address_key, ali_to_fields, format_address, parse_address
 from .cer_client import CERError, get_client
 from .filtersets import ELINFilterSet, ERLFilterSet
 from .forms import CERImportForm, ELINFilterForm, ELINForm, ERLFilterForm, ERLForm, ERLImportForm
-from .importers import ImportFormatError, import_elin_sheet, import_national_erls
+from .importers import ImportFormatError, import_cer_export
 from .models import ELIN, ERL, ERLStatusChoices, next_available_elin
 from .tables import ELINTable, ERLTable
 
@@ -381,9 +381,9 @@ class ELINBulkDeleteView(generic.BulkDeleteView):
 
 
 class CERImportView(PermissionRequiredMixin, View):
-    """Upload a CER National ERL export or an ELIN tracking sheet (dry run by default)."""
+    """Upload a CER ERL export (dry run by default)."""
 
-    permission_required = ("netbox_cisco_cer.add_erl", "netbox_cisco_cer.change_erl", "netbox_cisco_cer.add_elin")
+    permission_required = ("netbox_cisco_cer.add_erl", "netbox_cisco_cer.change_erl")
     template_name = "netbox_cisco_cer/import.html"
 
     def get(self, request):
@@ -393,21 +393,17 @@ class CERImportView(PermissionRequiredMixin, View):
         form = CERImportForm(request.POST, request.FILES)
         context = {"form": form, "next_elin": next_available_elin()}
         if form.is_valid():
-            kind = form.cleaned_data["kind"]
             dry_run = form.cleaned_data["dry_run"]
             data = form.cleaned_data["csv_file"].read()
             try:
-                if kind == "national_erls":
-                    result = import_national_erls(data, dry_run=dry_run)
-                else:
-                    result = import_elin_sheet(data, dry_run=dry_run)
+                result = import_cer_export(data, dry_run=dry_run)
             except ImportFormatError as e:
                 messages.error(request, str(e))
                 return render(request, self.template_name, context)
             except UnicodeDecodeError:
                 messages.error(request, "File is not UTF-8 CSV.")
                 return render(request, self.template_name, context)
-            context.update({"result": result, "kind": kind, "dry_run": dry_run})
+            context.update({"result": result, "dry_run": dry_run})
             if not dry_run:
                 messages.success(
                     request,

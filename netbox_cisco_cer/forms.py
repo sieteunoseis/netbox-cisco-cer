@@ -135,13 +135,9 @@ class ELINFilterForm(NetBoxModelFilterSetForm):
 
 
 class CERImportForm(forms.Form):
-    KIND_CHOICES = [
-        ("national_erls", "CER National ERL export (CSV)"),
-        ("elin_sheet", "ELIN tracking sheet (CSV: Phone Number, Building Name, ERL Name, Status, Note)"),
-    ]
-
-    kind = forms.ChoiceField(choices=KIND_CHOICES, label="File type")
-    csv_file = forms.FileField(label="CSV file")
+    csv_file = forms.FileField(
+        label="CER ERL export (CSV)", help_text="The CSV from CER's ERL Export button, unchanged"
+    )
     dry_run = forms.BooleanField(
         required=False, initial=True, label="Dry run", help_text="Preview the changes without saving anything"
     )

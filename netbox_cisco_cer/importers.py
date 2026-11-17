@@ -1,9 +1,7 @@
-"""Import CER exports into NetBox.
+"""Import CER ERL exports into NetBox.
 
-- National ERL export: CER Admin > National E911 ERL (Intrado zone config) > Export (CSV)
-- ELIN tracking sheet: CSV with Phone Number, Building Name, ERL Name, Status, Note
-
-Both are upserts keyed on ERL name / ELIN number, so re-importing a newer export updates records in place.
+Accepts CER's own ERL export CSV (National E911 or Conventional; same columns, told apart by "ERL Type").
+Upserts keyed on ERL name, so re-importing a newer export updates records in place.
 """
 
 import csv
@@ -14,7 +12,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from .address import address_key, parse_address
-from .models import ELIN, ERL, ELINStatusChoices, ERLStatusChoices
+from .models import ERL, ERLStatusChoices
 
 # NENA class/type of service codes -> CER display names (CER's lists are these in reverse code order)
 COS_CODES = {
@@ -40,7 +38,7 @@ TOS_CODES = {
 }
 
 ERL_COLUMNS = {"ERLName", "ELINSettings", "HouseNumber", "StreetName"}
-ELIN_COLUMNS = {"Phone Number", "Status"}
+SKIP_ERLS = {"Default"}  # every CER has one; not tied to a site
 
 # Fields an import may overwrite (site and comments are never overwritten once set)
 ERL_IMPORT_FIELDS = [
@@ -149,22 +147,23 @@ class SiteMatcher:
         return None, None
 
 
-def import_national_erls(data, dry_run=True):
-    """Upsert ERL records from a CER National ERL export. Returns a summary dict."""
+def import_cer_export(data, dry_run=True):
+    """Upsert ERL records from a CER ERL export CSV. Returns a summary dict."""
     rows = _read_csv(data, ERL_COLUMNS)
     now = timezone.now()
     matcher = SiteMatcher()
     existing = {e.name: e for e in ERL.objects.all()}
     result = {"rows": len(rows), "created": [], "updated": [], "unchanged": 0, "no_site": [], "errors": []}
-    seen = set()
+    seen, seen_statuses = set(), set()
 
     with transaction.atomic():
         for row in rows:
             name = row.get("ERLName", "")
-            if not name:
+            if not name or name in SKIP_ERLS:
                 continue
             seen.add(name)
             fields = _row_to_fields(row)
+            seen_statuses.add(fields["status"])
             erl = existing.get(name)
             if erl is None:
                 site, how = matcher.match(name, fields)
@@ -203,59 +202,10 @@ def import_national_erls(data, dry_run=True):
         if dry_run:
             transaction.set_rollback(True)
 
+    # Only ERL types present in this file count as "missing" (a Conventional export says nothing about National ERLs)
     result["missing_from_export"] = sorted(
-        e.name for e in existing.values() if e.status == ERLStatusChoices.STATUS_MIGRATED and e.name not in seen
+        e.name
+        for e in existing.values()
+        if e.status in seen_statuses and e.status != ERLStatusChoices.STATUS_PLANNED and e.name not in seen
     )
-    return result
-
-
-def import_elin_sheet(data, dry_run=True):
-    """Upsert the ELIN pool from a tracking sheet. Returns a summary dict, incl. sheet-vs-ERL mismatches."""
-    rows = _read_csv(data, ELIN_COLUMNS)
-    status_map = {
-        "in use": ELINStatusChoices.STATUS_IN_USE,
-        "available": ELINStatusChoices.STATUS_AVAILABLE,
-        "reserved": ELINStatusChoices.STATUS_RESERVED,
-    }
-    existing = {e.number: e for e in ELIN.objects.all()}
-    erl_by_elin = {e.elin: e for e in ERL.objects.exclude(elin="")}
-    result = {"rows": len(rows), "created": [], "updated": [], "unchanged": 0, "errors": [], "mismatches": []}
-
-    with transaction.atomic():
-        for row in rows:
-            number = "".join(ch for ch in row.get("Phone Number", "") if ch.isdigit())
-            if not number:
-                continue
-            fields = {
-                "status": status_map.get(row.get("Status", "").lower(), ELINStatusChoices.STATUS_RESERVED),
-                "building_name": row.get("Building Name", "")[:100],
-                "erl_name": row.get("ERL Name", "")[:100],
-                "note": row.get("Note", "")[:200],
-            }
-            elin = existing.get(number)
-            if elin is None:
-                elin = ELIN(number=number, **fields)
-                action = "created"
-            elif all(getattr(elin, k) == v for k, v in fields.items()):
-                result["unchanged"] += 1
-                action = None
-            else:
-                elin.snapshot()
-                for k, v in fields.items():
-                    setattr(elin, k, v)
-                action = "updated"
-            if action:
-                if not dry_run:
-                    elin.save()
-                result[action].append(number)
-
-            erl = erl_by_elin.get(number)
-            if erl and fields["status"] == ELINStatusChoices.STATUS_AVAILABLE:
-                result["mismatches"].append(f"{number}: sheet says Available, but ERL {erl.name} uses it")
-            elif erl and fields["erl_name"] and erl.name.upper() != fields["erl_name"].upper():
-                result["mismatches"].append(f"{number}: sheet name '{fields['erl_name']}' vs ERL '{erl.name}'")
-            elif not erl and fields["status"] == ELINStatusChoices.STATUS_IN_USE:
-                result["mismatches"].append(f"{number}: sheet says In Use ({fields['erl_name']}), no ERL record")
-        if dry_run:
-            transaction.set_rollback(True)
     return result
