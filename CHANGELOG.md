@@ -14,6 +14,7 @@
 - New ERL fields: ALI comments, ERL type, last seen in export.
 - CER Class/Type of Service codes (NENA) are mapped to CER's display names.
 - ELIN API: `/api/plugins/cisco-cer/elins/`.
+- "Open CER Admin" link (from `cer_host`) on the Site tab and the import page.
 
 ### Changed
 - Deleting a Site keeps its ERLs, which become "no site", instead of deleting them.

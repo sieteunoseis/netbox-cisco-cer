@@ -18,7 +18,7 @@ from utilities.views import ViewTab, register_model_view
 
 from . import geocode
 from .address import address_key, ali_to_fields, format_address, parse_address
-from .cer_client import CERError, get_client
+from .cer_client import CERError, admin_url, get_client
 from .filtersets import ELINFilterSet, ERLFilterSet
 from .forms import CERImportForm, ELINFilterForm, ELINForm, ERLFilterForm, ERLForm, ERLImportForm
 from .importers import ImportFormatError, import_cer_export
@@ -201,6 +201,7 @@ class SiteCERView(generic.ObjectView):
                 "query": query,
                 "site_address": format_address(site_fields),
                 "new_erl_url": _new_erl_url(site),
+                "cer_admin_url": admin_url(),
                 "show_lookup": show_lookup,
                 "addr_query": addr_query,
                 "addr_searched": bool(request.GET.get("addr_q", "").strip()),
@@ -387,11 +388,15 @@ class CERImportView(PermissionRequiredMixin, View):
     template_name = "netbox_cisco_cer/import.html"
 
     def get(self, request):
-        return render(request, self.template_name, {"form": CERImportForm(), "next_elin": next_available_elin()})
+        return render(
+            request,
+            self.template_name,
+            {"form": CERImportForm(), "next_elin": next_available_elin(), "cer_admin_url": admin_url()},
+        )
 
     def post(self, request):
         form = CERImportForm(request.POST, request.FILES)
-        context = {"form": form, "next_elin": next_available_elin()}
+        context = {"form": form, "next_elin": next_available_elin(), "cer_admin_url": admin_url()}
         if form.is_valid():
             dry_run = form.cleaned_data["dry_run"]
             data = form.cleaned_data["csv_file"].read()

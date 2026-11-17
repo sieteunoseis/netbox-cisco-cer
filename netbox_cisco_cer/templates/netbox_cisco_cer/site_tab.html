@@ -67,6 +67,7 @@
     <div class="card mb-3">
       <h5 class="card-header">
         <i class="mdi mdi-map-marker-radius"></i> ERLs for {{ object }}
+        {% if cer_admin_url %}<a href="{{ cer_admin_url }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-secondary float-end"><i class="mdi mdi-open-in-new"></i> Open CER Admin</a>{% endif %}
       </h5>
       <div class="card-body">
         {% if perms.netbox_cisco_cer.add_erl %}

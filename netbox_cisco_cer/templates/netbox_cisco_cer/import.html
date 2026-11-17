@@ -24,7 +24,7 @@
       <h5 class="card-header"><i class="mdi mdi-information-outline"></i> How syncing works</h5>
       <div class="card-body small">
         <ul class="mb-2">
-          <li>In CER Admin, open the ERL list (National E911 or Conventional) and click <em>Export</em>. Upload the CSV unchanged.</li>
+          <li>In {% if cer_admin_url %}<a href="{{ cer_admin_url }}" target="_blank" rel="noopener">CER Admin <i class="mdi mdi-open-in-new"></i></a>{% else %}CER Admin{% endif %}, open the ERL list (National E911 or Conventional) and click <em>Export</em>. Upload the CSV unchanged.</li>
           <li>ERLs are matched by name, so re-importing a newer export updates them in place. National E911 ERLs import as <em>Migrated</em>, Conventional ones as <em>In CER</em>. The <code>Default</code> ERL is skipped.</li>
           <li>New ERLs are matched to a Site by name prefix (<code>ADMN 0-2</code> becomes <code>ADMN</code>), then by street address. ERLs with no match are imported without a site.</li>
           <li>Start with <strong>Dry run</strong> to preview the changes. Nothing is saved until you untick it.</li>

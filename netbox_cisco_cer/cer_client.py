@@ -190,6 +190,12 @@ class CERClient:
         return data.get("message", "")
 
 
+def admin_url():
+    """Link to the configured CER's admin web UI, or "" if not configured."""
+    host = settings.PLUGINS_CONFIG.get("netbox_cisco_cer", {}).get("cer_host", "")
+    return f"https://{host}/ceradmin/servlet/CERAdminServlet" if host else ""
+
+
 def get_client():
     """Build a client from PLUGINS_CONFIG, or return None if not configured."""
     cfg = settings.PLUGINS_CONFIG.get("netbox_cisco_cer", {})
