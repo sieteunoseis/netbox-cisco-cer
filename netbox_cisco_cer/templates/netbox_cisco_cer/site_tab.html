@@ -1,0 +1,200 @@
+{% extends 'generic/object.html' %}
+{% load helpers %}
+
+{% block content %}
+<div class="row">
+  <div class="col-12">
+    {% if cer_error %}
+    <div class="alert alert-warning"><i class="mdi mdi-alert"></i> {{ cer_error }}</div>
+    {% endif %}
+
+    {% if show_lookup %}
+    <div class="card mb-3">
+      <h5 class="card-header">
+        <i class="mdi mdi-map-search"></i> Find an address for {{ object }}
+      </h5>
+      <div class="card-body">
+        {% if not object.physical_address %}
+        <p class="text-muted">This site has no physical address. Search by street address or building name, then pick a result to save it on the site.</p>
+        {% endif %}
+        <form method="get" class="row g-2 mb-3">
+          <input type="hidden" name="lookup" value="1">
+          <div class="col-md-8">
+            <input type="text" name="addr_q" value="{{ addr_query }}" class="form-control" placeholder="e.g. 579 SW Campus Dr Portland OR, or a building name">
+          </div>
+          <div class="col-auto">
+            <button type="submit" class="btn btn-primary"><i class="mdi mdi-magnify"></i> Look up</button>
+            {% if object.physical_address %}<a href="{{ request.path }}" class="btn btn-outline-secondary">Cancel</a>{% endif %}
+          </div>
+        </form>
+        {% for err in addr_errors %}
+        <div class="alert alert-warning"><i class="mdi mdi-alert"></i> {{ err }}</div>
+        {% endfor %}
+        {% if addr_results %}
+        <table class="table table-hover">
+          <thead><tr><th>Result</th><th>Saved as</th><th>Source</th><th></th></tr></thead>
+          <tbody>
+          {% for r in addr_results %}
+            <tr>
+              <td class="small">{{ r.label }}</td>
+              <td>
+                {{ r.physical_address }}
+                {% if not r.complete %}<div><span class="badge text-bg-warning">No house number / ZIP - fill in after saving</span></div>{% endif %}
+              </td>
+              <td><span class="badge text-bg-secondary">{{ r.source }}</span></td>
+              <td class="text-end">
+                {% if perms.dcim.change_site %}
+                <form method="post" action="{% url 'plugins:netbox_cisco_cer:site_address' site_pk=object.pk %}" class="d-inline">
+                  {% csrf_token %}
+                  <input type="hidden" name="physical_address" value="{{ r.physical_address }}">
+                  <input type="hidden" name="latitude" value="{{ r.latitude|default_if_none:'' }}">
+                  <input type="hidden" name="longitude" value="{{ r.longitude|default_if_none:'' }}">
+                  <button type="submit" class="btn btn-sm btn-success"><i class="mdi mdi-content-save"></i> Use for site</button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% elif addr_searched and not addr_errors %}
+        <p class="text-muted mb-0">No results for "{{ addr_query }}". Try a street address or a different building name.</p>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="card mb-3">
+      <h5 class="card-header">
+        <i class="mdi mdi-map-marker-radius"></i> ERLs for {{ object }}
+      </h5>
+      <div class="card-body">
+        {% if perms.netbox_cisco_cer.add_erl %}
+        <div class="mb-3">
+          <a href="{{ new_erl_url }}" class="btn btn-sm btn-primary">
+            <i class="mdi mdi-plus-thick"></i> New ERL from site address
+          </a>
+        </div>
+        {% endif %}
+        <p class="text-muted mb-2">
+          Site address: {{ object.physical_address|placeholder }}
+          {% if object.physical_address and not show_lookup and perms.dcim.change_site %}
+          <a href="?lookup=1" class="ms-2 small"><i class="mdi mdi-map-search"></i> Look up a different address</a>
+          {% endif %}
+          {% if site_address %}<br>Parsed as: <code>{{ site_address }}</code>{% endif %}
+        </p>
+        {% if rows %}
+        <table class="table table-hover">
+          <thead>
+            <tr>
+              <th>ERL</th><th>Status</th><th>ELIN</th><th>Address (NetBox)</th><th>Location</th><th>CER</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for row in rows %}
+            {% with erl=row.record cer=row.cer %}
+            <tr>
+              <td><a href="{{ erl.get_absolute_url }}">{{ erl.name }}</a></td>
+              <td>{% badge erl.get_status_display bg_color=erl.get_status_color %}</td>
+              <td>
+                {% if erl.elin %}{{ erl.elin }}
+                {% elif cer.cer_elin %}{{ cer.cer_elin }} <span class="badge text-bg-info" title="Set in CER, not yet in NetBox - Update CER copies it back">from CER</span>
+                {% else %}<span class="badge text-bg-warning" title="CER's National E911 migration fails without an ELIN">No ELIN - add before migrating</span>{% endif %}
+              </td>
+              <td>{{ erl.formatted_address|placeholder }}</td>
+              <td>{{ erl.location|placeholder }}</td>
+              <td>
+                {% if cer_error %}
+                  <span class="text-muted">unknown</span>
+                {% elif cer.present and cer.address_match %}
+                  <span class="badge text-bg-success"><i class="mdi mdi-check"></i> In CER, address matches</span>
+                {% elif cer.present %}
+                  <span class="badge text-bg-warning" title="CER: {{ cer.cer_address }}"><i class="mdi mdi-alert"></i> In CER, address differs</span>
+                  <div class="small text-muted">CER: {{ cer.cer_address }}</div>
+                {% else %}
+                  <span class="badge text-bg-secondary">Not in Conventional list</span>
+                  {% if erl.status == 'migrated' %}<div class="small text-muted">expected after migration</div>{% elif erl.status == 'off_premises' %}<div class="small text-muted">Off-Premises ERLs are not in the Conventional API</div>{% endif %}
+                {% endif %}
+              </td>
+              <td class="text-end">
+                {% if perms.netbox_cisco_cer.change_erl and erl.status != 'migrated' and erl.status != 'off_premises' %}
+                <form method="post" action="{% url 'plugins:netbox_cisco_cer:erl_push' pk=erl.pk %}" class="d-inline">
+                  {% csrf_token %}
+                  <input type="hidden" name="return_url" value="{{ request.path }}">
+                  <button type="submit" class="btn btn-sm btn-success">
+                    <i class="mdi mdi-upload"></i> {% if cer.present %}Update CER{% else %}Push to CER{% endif %}
+                  </button>
+                </form>
+                {% endif %}
+                {% if perms.netbox_cisco_cer.change_erl %}
+                <a href="{% url 'plugins:netbox_cisco_cer:erl_edit' pk=erl.pk %}?return_url={{ request.path }}" class="btn btn-sm btn-warning">
+                  <i class="mdi mdi-pencil"></i>
+                </a>
+                {% endif %}
+              </td>
+            </tr>
+            {% endwith %}
+          {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p class="text-muted mb-0">No ERLs are linked to this site yet.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if not cer_error %}
+    <div class="card mb-3">
+      <h5 class="card-header"><i class="mdi mdi-link-variant"></i> Link an existing CER Conventional ERL</h5>
+      <div class="card-body">
+        <form method="get" class="row g-2 mb-3">
+          <div class="col-md-6">
+            <input type="text" name="q" value="{{ query }}" class="form-control" placeholder="Search CER by ERL name, address or location">
+          </div>
+          <div class="col-auto">
+            <button type="submit" class="btn btn-primary"><i class="mdi mdi-magnify"></i> Search</button>
+            {% if query %}<a href="{{ request.path }}" class="btn btn-outline-secondary">Clear</a>{% endif %}
+          </div>
+        </form>
+        {% if candidates %}
+        {% if perms.netbox_cisco_cer.add_erl and match_count > 1 %}
+        <form method="post" action="{% url 'plugins:netbox_cisco_cer:erl_link' site_pk=object.pk %}" class="mb-2">
+          {% csrf_token %}
+          {% for c in candidates %}{% if c.match %}<input type="hidden" name="erl_name" value="{{ c.name }}">{% endif %}{% endfor %}
+          <button type="submit" class="btn btn-sm btn-primary"><i class="mdi mdi-link-variant-plus"></i> Link all {{ match_count }} address matches</button>
+        </form>
+        {% endif %}
+        <table class="table table-hover">
+          <thead><tr><th>CER ERL</th><th>Address</th><th>Location</th><th>ELIN</th><th></th><th></th></tr></thead>
+          <tbody>
+          {% for c in candidates %}
+            <tr>
+              <td>{{ c.name }}</td>
+              <td>{{ c.address|placeholder }}</td>
+              <td>{{ c.location|placeholder }}</td>
+              <td>{{ c.elin|placeholder }}</td>
+              <td>{% if c.match %}<span class="badge text-bg-success"><i class="mdi mdi-check"></i> Address matches site</span>{% endif %}</td>
+              <td class="text-end">
+                {% if perms.netbox_cisco_cer.add_erl %}
+                <form method="post" action="{% url 'plugins:netbox_cisco_cer:erl_link' site_pk=object.pk %}" class="d-inline">
+                  {% csrf_token %}
+                  <input type="hidden" name="erl_name" value="{{ c.name }}">
+                  <button type="submit" class="btn btn-sm btn-primary"><i class="mdi mdi-link"></i> Link</button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        {% elif query %}
+        <p class="text-muted mb-0">No unlinked Conventional ERLs match "{{ query }}".</p>
+        {% else %}
+        <p class="text-muted mb-0">No unlinked Conventional ERLs match this site's address. Search to find one by name.</p>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

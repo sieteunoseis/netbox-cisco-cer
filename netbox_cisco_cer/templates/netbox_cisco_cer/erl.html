@@ -1,0 +1,84 @@
+{% extends 'generic/object.html' %}
+{% load helpers %}
+{% load plugins %}
+
+{% block extra_controls %}
+{% if perms.netbox_cisco_cer.change_erl and object.status != 'migrated' and object.status != 'off_premises' %}
+<form method="post" action="{% url 'plugins:netbox_cisco_cer:erl_push' pk=object.pk %}" class="d-inline">
+  {% csrf_token %}
+  <button type="submit" class="btn btn-success">
+    <i class="mdi mdi-upload"></i> {% if cer.present %}Update CER{% else %}Push to CER{% endif %}
+  </button>
+</form>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col col-md-6">
+    <div class="card">
+      <h5 class="card-header">ERL</h5>
+      <table class="table table-hover attr-table">
+        <tr><th scope="row">Name</th><td>{{ object.name }}</td></tr>
+        <tr><th scope="row">Site</th><td>{{ object.site|linkify }}</td></tr>
+        <tr><th scope="row">Status</th><td>{% badge object.get_status_display bg_color=object.get_status_color %}</td></tr>
+        <tr><th scope="row">Description</th><td>{{ object.description|placeholder }}</td></tr>
+        <tr><th scope="row">ELIN</th><td>{{ object.elin|placeholder }}</td></tr>
+        <tr><th scope="row">Route pattern</th><td>{{ object.route_pattern|placeholder }}</td></tr>
+        <tr><th scope="row">Time zone</th><td>{{ object.time_zone|placeholder }}</td></tr>
+        <tr><th scope="row">Onsite alerts</th><td>{{ object.onsite_alert_list|join:", "|placeholder }}</td></tr>
+        <tr><th scope="row">Last pushed</th><td>{{ object.last_pushed|isodatetime|placeholder }}</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <h5 class="card-header">ALI</h5>
+      <table class="table table-hover attr-table">
+        <tr><th scope="row">Address</th><td>{{ object.formatted_address|placeholder }}</td></tr>
+        <tr><th scope="row">Location</th><td>{{ object.location|placeholder }}</td></tr>
+        <tr><th scope="row">Class of service</th><td>{{ object.cos|placeholder }}</td></tr>
+        <tr><th scope="row">Type of service</th><td>{{ object.tos|placeholder }}</td></tr>
+        <tr><th scope="row">Customer name</th><td>{{ object.customer_name|placeholder }}</td></tr>
+        <tr><th scope="row">Company ID</th><td>{{ object.company_id|placeholder }}</td></tr>
+        <tr><th scope="row">Customer code</th><td>{{ object.customer_code|placeholder }}</td></tr>
+      </table>
+    </div>
+    {% include 'inc/panels/custom_fields.html' %}
+    {% include 'inc/panels/tags.html' %}
+    {% include 'inc/panels/comments.html' %}
+  </div>
+  <div class="col col-md-6">
+    <div class="card">
+      <h5 class="card-header">Cisco CER</h5>
+      <div class="card-body">
+        {% if cer_error %}
+          <div class="alert alert-warning mb-0"><i class="mdi mdi-alert"></i> {{ cer_error }}</div>
+        {% elif cer.present %}
+          <p>
+            {% if cer.address_match %}
+            <span class="badge text-bg-success"><i class="mdi mdi-check"></i> In CER, address matches</span>
+            {% else %}
+            <span class="badge text-bg-warning"><i class="mdi mdi-alert"></i> In CER, address differs</span>
+            {% endif %}
+          </p>
+          <table class="table table-sm attr-table mb-0">
+            <tr><th scope="row">CER address</th><td>{{ cer.cer_address|placeholder }}</td></tr>
+            <tr><th scope="row">CER ELIN</th><td>{{ cer.cer_elin|placeholder }}</td></tr>
+            <tr><th scope="row">CER onsite alerts</th><td>{{ cer.cer.onsite_alerts|join:", "|placeholder }}</td></tr>
+            <tr><th scope="row">CER location</th><td>{{ cer.cer.ali.Location|placeholder }}</td></tr>
+          </table>
+        {% else %}
+          <span class="badge text-bg-secondary">Not in CER's Conventional list</span>
+          <p class="text-muted small mt-2 mb-0">
+            Either not pushed yet, migrated to National E911, or deleted in CER.
+            The CER API cannot see National E911 ERLs.
+          </p>
+        {% endif %}
+      </div>
+    </div>
+    {% plugin_right_page object %}
+  </div>
+</div>
+<div class="row">
+  <div class="col col-md-12">{% plugin_full_width_page object %}</div>
+</div>
+{% endblock %}
