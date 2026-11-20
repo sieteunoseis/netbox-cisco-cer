@@ -39,6 +39,7 @@ urlpatterns = [
         kwargs={"model": models.ELIN},
     ),
     path("import/", views.CERImportView.as_view(), name="cer_import"),
+    path("import/rematch/", views.ERLRematchView.as_view(), name="erl_rematch"),
     path("sites/<int:site_pk>/link/", views.ERLLinkView.as_view(), name="erl_link"),
     path("sites/<int:site_pk>/address/", views.SiteAddressView.as_view(), name="site_address"),
 ]

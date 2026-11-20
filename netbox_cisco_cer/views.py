@@ -21,7 +21,7 @@ from .address import address_key, ali_to_fields, format_address, parse_address
 from .cer_client import CERError, admin_url, get_client
 from .filtersets import ELINFilterSet, ERLFilterSet
 from .forms import CERImportForm, ELINFilterForm, ELINForm, ERLFilterForm, ERLForm, ERLImportForm
-from .importers import ImportFormatError, import_cer_export
+from .importers import ImportFormatError, erl_prefix, import_cer_export, rematch_unassigned, unassigned_groups
 from .models import ELIN, ERL, ERLStatusChoices, next_available_elin
 from .tables import ELINTable, ERLTable
 
@@ -49,7 +49,12 @@ class ERLView(generic.ObjectView):
 
     def get_extra_context(self, request, instance):
         state, error, _ = _cer_state_for([instance])
-        return {"cer": state.get(instance.pk), "cer_error": error}
+        context = {"cer": state.get(instance.pk), "cer_error": error}
+        if instance.site is None:
+            context["new_site_url"] = _new_site_url(
+                erl_prefix(instance.name), instance.formatted_address, reverse("plugins:netbox_cisco_cer:cer_import")
+            )
+        return context
 
 
 class ERLEditView(generic.ObjectEditView):
@@ -107,6 +112,18 @@ def _cer_state_for(records):
             "cer_elin": ", ".join(x["elin"] for x in cer["elins"]) if cer else "",
         }
     return state, None, erls
+
+
+def _new_site_url(prefix, address, return_url):
+    """Add-Site URL prefilled from an unmatched ERL's name prefix and CER address."""
+    params = {"name": prefix, "slug": prefix.lower(), "physical_address": address, "return_url": return_url}
+    return f"{reverse('dcim:site_add')}?{urlencode({k: v for k, v in params.items() if v})}"
+
+
+def _with_site_urls(groups, return_url):
+    for g in groups:
+        g["create_url"] = _new_site_url(g["prefix"], g["address"], return_url)
+    return groups
 
 
 def _new_erl_url(site):
@@ -387,16 +404,21 @@ class CERImportView(PermissionRequiredMixin, View):
     permission_required = ("netbox_cisco_cer.add_erl", "netbox_cisco_cer.change_erl")
     template_name = "netbox_cisco_cer/import.html"
 
+    def _context(self, request, form):
+        return {
+            "form": form,
+            "next_elin": next_available_elin(),
+            "cer_admin_url": admin_url(),
+            "unassigned": _with_site_urls(unassigned_groups(), request.path),
+            "site_map": _plugin_cfg().get("erl_site_map") or {},
+        }
+
     def get(self, request):
-        return render(
-            request,
-            self.template_name,
-            {"form": CERImportForm(), "next_elin": next_available_elin(), "cer_admin_url": admin_url()},
-        )
+        return render(request, self.template_name, self._context(request, CERImportForm()))
 
     def post(self, request):
         form = CERImportForm(request.POST, request.FILES)
-        context = {"form": form, "next_elin": next_available_elin(), "cer_admin_url": admin_url()}
+        context = self._context(request, form)
         if form.is_valid():
             dry_run = form.cleaned_data["dry_run"]
             data = form.cleaned_data["csv_file"].read()
@@ -408,6 +430,7 @@ class CERImportView(PermissionRequiredMixin, View):
             except UnicodeDecodeError:
                 messages.error(request, "File is not UTF-8 CSV.")
                 return render(request, self.template_name, context)
+            _with_site_urls(result["no_site_groups"], request.path)
             context.update({"result": result, "dry_run": dry_run})
             if not dry_run:
                 messages.success(
@@ -415,5 +438,19 @@ class CERImportView(PermissionRequiredMixin, View):
                     f"Imported: {len(result['created'])} created, {len(result['updated'])} updated, "
                     f"{result['unchanged']} unchanged.",
                 )
-                context["next_elin"] = next_available_elin()
+                context = {**self._context(request, form), "result": result, "dry_run": dry_run}
         return render(request, self.template_name, context)
+
+
+class ERLRematchView(PermissionRequiredMixin, View):
+    """Assign Sites to ERLs that have none (after creating Sites or editing erl_site_map)."""
+
+    permission_required = "netbox_cisco_cer.change_erl"
+
+    def post(self, request):
+        assigned = rematch_unassigned()
+        if assigned:
+            messages.success(request, f"Assigned {len(assigned)} ERL(s): {', '.join(assigned)}")
+        else:
+            messages.info(request, "No new site matches. Create the site or add the prefix to erl_site_map.")
+        return redirect("plugins:netbox_cisco_cer:cer_import")

@@ -8,10 +8,11 @@ import csv
 import io
 
 from dcim.models import Site
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
-from .address import address_key, parse_address
+from .address import address_key, format_address, parse_address
 from .models import ERL, ERLStatusChoices
 
 # NENA class/type of service codes -> CER display names (CER's lists are these in reverse code order)
@@ -125,26 +126,72 @@ def _row_to_fields(row):
     }
 
 
+def erl_prefix(name):
+    """Site-ish part of an ERL name: "ADMN 0-2" -> "ADMN"."""
+    parts = name.split()
+    return parts[0].upper() if parts else ""
+
+
+def group_by_prefix(items):
+    """[(erl name, address)] -> [{prefix, count, names, address}] sorted by prefix."""
+    groups = {}
+    for name, address in items:
+        g = groups.setdefault(erl_prefix(name), {"prefix": erl_prefix(name), "names": [], "address": address})
+        g["names"].append(name)
+        g["address"] = g["address"] or address
+    for g in groups.values():
+        g["names"].sort()
+        g["count"] = len(g["names"])
+    return [groups[k] for k in sorted(groups)]
+
+
 class SiteMatcher:
-    """Match an ERL to a Site by name prefix ("ADMN 0-2" -> site "ADMN"), then by unique street address."""
+    """Match an ERL to a Site: erl_site_map, then name prefix ("ADMN 0-2" -> "ADMN"), then unique street address."""
 
     def __init__(self):
         self.by_name = {}
         by_address = {}
-        for site in Site.objects.only("id", "name", "physical_address"):
+        for site in Site.objects.only("id", "name", "slug", "physical_address"):
+            self.by_name.setdefault(site.slug.upper(), site)
             self.by_name[site.name.upper()] = site
             if site.physical_address:
                 by_address.setdefault(address_key(parse_address(site.physical_address))[:6], []).append(site)
         self.by_address = {k: v[0] for k, v in by_address.items() if len(v) == 1}
+        site_map = settings.PLUGINS_CONFIG.get("netbox_cisco_cer", {}).get("erl_site_map") or {}
+        self.site_map = {str(k).upper(): str(v).upper() for k, v in site_map.items()}
 
     def match(self, name, fields):
-        prefix = name.split()[0].upper() if name.split() else ""
+        prefix = erl_prefix(name)
+        mapped = self.site_map.get(prefix)
+        if mapped and mapped in self.by_name:
+            return self.by_name[mapped], "map"
         if prefix in self.by_name:
             return self.by_name[prefix], "name"
         key = address_key(fields)[:6]
         if key[0] and key in self.by_address:
             return self.by_address[key], "address"
         return None, None
+
+
+def unassigned_groups():
+    """ERLs in NetBox with no Site, grouped by name prefix."""
+    erls = ERL.objects.filter(site__isnull=True).order_by("name")
+    return group_by_prefix((e.name, e.formatted_address) for e in erls)
+
+
+def rematch_unassigned():
+    """Assign Sites to ERLs that have none, using the same rules as the import. Returns "ERL -> Site" strings."""
+    matcher = SiteMatcher()
+    assigned = []
+    with transaction.atomic():
+        for erl in ERL.objects.filter(site__isnull=True).order_by("name"):
+            site, _ = matcher.match(erl.name, erl.address_fields)
+            if site:
+                erl.snapshot()
+                erl.site = site
+                erl.save()
+                assigned.append(f"{erl.name} -> {site.name}")
+    return assigned
 
 
 def import_cer_export(data, dry_run=True):
@@ -155,6 +202,7 @@ def import_cer_export(data, dry_run=True):
     existing = {e.name: e for e in ERL.objects.all()}
     result = {"rows": len(rows), "created": [], "updated": [], "unchanged": 0, "no_site": [], "errors": []}
     seen, seen_statuses = set(), set()
+    no_site_addresses = []
 
     with transaction.atomic():
         for row in rows:
@@ -182,6 +230,7 @@ def import_cer_export(data, dry_run=True):
                         ERL.objects.filter(pk=erl.pk).update(last_seen_export=now)
                     if erl.site is None:
                         result["no_site"].append(name)
+                        no_site_addresses.append((name, format_address(fields)))
                     continue
                 erl.snapshot()
                 for f in ERL_IMPORT_FIELDS:
@@ -199,6 +248,7 @@ def import_cer_export(data, dry_run=True):
             result[action].append(name)
             if site is None:
                 result["no_site"].append(name)
+                no_site_addresses.append((name, format_address(fields)))
         if dry_run:
             transaction.set_rollback(True)
 
@@ -208,4 +258,5 @@ def import_cer_export(data, dry_run=True):
         for e in existing.values()
         if e.status in seen_statuses and e.status != ERLStatusChoices.STATUS_PLANNED and e.name not in seen
     )
+    result["no_site_groups"] = group_by_prefix(no_site_addresses)
     return result

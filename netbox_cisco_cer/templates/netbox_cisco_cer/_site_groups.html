@@ -1,0 +1,15 @@
+<table class="table table-sm table-hover">
+  <thead><tr><th>Prefix</th><th>ERLs</th><th>Address (from CER)</th><th></th></tr></thead>
+  <tbody>
+  {% for g in groups %}
+    <tr>
+      <td><strong>{{ g.prefix }}</strong></td>
+      <td class="small" title="{{ g.names|join:', ' }}">{{ g.count }}{% if g.count <= 4 %} <span class="text-muted">({{ g.names|join:", " }})</span>{% endif %}</td>
+      <td class="small">{{ g.address|placeholder }}</td>
+      <td class="text-end">
+        {% if perms.dcim.add_site %}<a href="{{ g.create_url }}" class="btn btn-sm btn-outline-primary"><i class="mdi mdi-plus-thick"></i> Create site</a>{% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>

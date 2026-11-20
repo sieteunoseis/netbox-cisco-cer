@@ -19,6 +19,7 @@ NetBox plugin for Cisco Emergency Responder (CER). Keeps Conventional ERL record
 - In CER Admin, open the National E911 or Conventional ERL page and click *Export*.
 - Re-upload a newer export whenever you like. Records are updated by ERL name.
 - National E911 ERLs import as *Migrated* and Conventional ones as *In CER*. `Default` is skipped.
+- **ERLs without a site** are grouped by name prefix. **Create site** opens the Add Site form prefilled from CER's address. Or map the prefix with `erl_site_map`. Then click **Re-match sites**.
 - The **ELIN Pool** is entered by hand. The New ERL form suggests the next Available number from it and blocks duplicate ELINs.
 
 ### National E911 workflow
@@ -59,6 +60,7 @@ PLUGINS_CONFIG = {
         "default_customer_name": "",
         "default_company_id": "",
         "default_customer_code": "",
+        "erl_site_map": {"POB1": "POB"},  # ERL name prefix -> Site name or slug
     },
 }
 ```

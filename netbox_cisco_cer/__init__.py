@@ -8,7 +8,7 @@ to Conventional ERLs that already exist in CER.
 
 from netbox.plugins import PluginConfig
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 
 class CiscoCERConfig(PluginConfig):
@@ -47,6 +47,8 @@ class CiscoCERConfig(PluginConfig):
         "default_customer_name": "",
         "default_company_id": "",
         "default_customer_code": "",
+        # ERL name prefix -> Site name or slug, for ERLs whose prefix differs from the Site, e.g. {"POB1": "POB"}
+        "erl_site_map": {},
         # Address lookup for Sites without an address (US Census + OpenStreetMap Nominatim)
         "geocoder_countrycodes": "us",
         "geocoder_user_agent": "",  # defaults to "netbox-cisco-cer/<version>"

@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0] - 2026-11-20
+
+### Added
+- **ERLs without a site** card on CER Import / Sync. Unmatched ERLs are grouped by name prefix, with a **Create site** button that opens NetBox's Add Site form prefilled with the prefix and CER's address.
+- **Re-match sites** button: assigns Sites to site-less ERLs using the import's rules, without uploading the export again.
+- `erl_site_map` setting maps an ERL name prefix to a Site name or slug (e.g. `{"POB1": "POB"}`).
+- **Create site** button on the ERL page when the ERL has no site.
+- Site matching also accepts the Site slug.
+
+### Fixed
+- The dry run / saved badge on import results sits on its own line above the title.
+
 ## [0.2.0] - 2026-11-17
 
 ### Added

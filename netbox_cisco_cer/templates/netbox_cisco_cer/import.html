@@ -35,12 +35,31 @@
   </div>
 </div>
 
+{% if unassigned and not dry_run %}
+<div class="card mb-3">
+  <div class="card-header d-block">
+    <h5 class="card-title mb-1"><i class="mdi mdi-map-marker-question"></i> ERLs without a site</h5>
+    <div class="small text-muted">Create the missing Site (prefilled from CER's address), or map the prefix to an existing Site with the <code>erl_site_map</code> setting, then click <em>Re-match sites</em>. No file upload needed.</div>
+  </div>
+  <div class="card-body">
+    {% if perms.netbox_cisco_cer.change_erl %}
+    <form method="post" action="{% url 'plugins:netbox_cisco_cer:erl_rematch' %}" class="mb-3">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-sm btn-primary"><i class="mdi mdi-link-variant"></i> Re-match sites</button>
+      {% if site_map %}<span class="small text-muted ms-2">erl_site_map: {% for k, v in site_map.items %}<code>{{ k }}</code> &rarr; <code>{{ v }}</code>{% if not forloop.last %}, {% endif %}{% endfor %}</span>{% endif %}
+    </form>
+    {% endif %}
+    {% include "netbox_cisco_cer/_site_groups.html" with groups=unassigned %}
+  </div>
+</div>
+{% endif %}
+
 {% if result %}
 <div class="card mb-3">
-  <h5 class="card-header">
-    <div class="mb-1">{% if dry_run %}<span class="badge text-bg-warning">Dry run - nothing saved</span>{% else %}<span class="badge text-bg-success">Saved</span>{% endif %}</div>
-    CER ERL export: {{ result.rows }} rows
-  </h5>
+  <div class="card-header d-block">
+    <div class="mb-2">{% if dry_run %}<span class="badge text-bg-warning">Dry run - nothing saved</span>{% else %}<span class="badge text-bg-success">Saved</span>{% endif %}</div>
+    <h5 class="card-title mb-0">CER ERL export: {{ result.rows }} rows</h5>
+  </div>
   <div class="card-body">
     <table class="table table-sm w-auto mb-3">
       <tr><th>Created</th><td>{{ result.created|length }}</td></tr>
@@ -59,9 +78,9 @@
     <h6>ERLs of this type not in this export (deleted or migrated in CER?)</h6>
     <p class="small">{{ result.missing_from_export|join:", " }}</p>
     {% endif %}
-    {% if result.no_site %}
+    {% if result.no_site_groups and dry_run %}
     <h6>No matching site</h6>
-    <p class="small">{{ result.no_site|join:", " }}</p>
+    {% include "netbox_cisco_cer/_site_groups.html" with groups=result.no_site_groups %}
     {% endif %}
     {% if result.created %}
     <h6>Created</h6>
